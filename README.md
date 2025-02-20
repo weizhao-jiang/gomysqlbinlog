@@ -50,5 +50,41 @@ gomysqlbinlog --skip-gtids --start-datetime "2025-02-20 08:00:00"  --stop-dateti
 
 #### 输出实例
 ```bash
+root@test# ./gomysqlbinlog --sql  /mysql-bin
+DELIMITER /*!*/;
+# at 4
+#2024-11-14 17:22:50 server id 5223  end_log_pos 126 CRC32 dd96da5e      FORMAT_DESCRIPTION_EVENT Start: binlog v4, server v8.0.40-0ubuntu0.22.04.1 created 2024-11-14 17:22:50
 
+# at 126
+#2024-11-14 17:22:50 server id 5223  end_log_pos 197 CRC32 1087a1b6      PREVIOUS_GTIDS_LOG_EVENT 
+# ac0890ba-af9f-11ee-a694-525400f0b85f:1-72002137
+# at 197
+#2024-11-14 17:23:45 server id 5223  end_log_pos 276 CRC32 b2a6cde7      GTID_LOG_EVENT 
+/*!80001 SET @@session.original_commit_timestamp=0*/ /*!*/;
+/*!80014 SET @@session.original_server_version=80040*/ /*!*/;
+/*!80014 SET @@session.immediate_server_version=80040*/ /*!*/;
+SET @@SESSION.GTID_NEXT='ac0890ba-af9f-11ee-a694-525400f0b85f:72002138' /*!*/;
+# at 276
+#2024-11-14 17:23:45 server id 5223  end_log_pos 351 CRC32 f91d9f00      QUERY_EVENT 
+SET TIMESTAMP=1731576225 /* QUERY TIME 2024-11-14 17:23:45 */ /*!*/;
+SET @@session.sql_mode=1168113696 /*!*/;
+SET @@session.auto_increment_increment=0 /*!*/;
+SET @@session.character_set_client=255, @@session.collation_connection=255, @@session.collation_server=255 /*!*/;
+/*!80011 SET @@session.default_collation_for_utf8mb4=255 *//*!*/;
+USE test /*!*/;
+BEGIN /*!*/;
+# at 351
+#2024-11-14 17:23:45 server id 5223  end_log_pos 401 CRC32 7bfa585a      TABLE_MAP_EVENT Table_map:`test`.`x222` mapped to 110
+# at 401
+#2024-11-14 17:23:45 server id 5223  end_log_pos 461 CRC32 e55d4948      WRITE_ROWS_EVENT table id 110
+-- INSERT INTO `test`.`x222` VALUES (1) /* WRITE_ROWS_EVENT */ /*!*/;
+-- INSERT INTO `test`.`x222` VALUES (2) /* WRITE_ROWS_EVENT */ /*!*/;
+-- INSERT INTO `test`.`x222` VALUES (3) /* WRITE_ROWS_EVENT */ /*!*/;
+-- INSERT INTO `test`.`x222` VALUES (4) /* WRITE_ROWS_EVENT */ /*!*/;
+-- INSERT INTO `test`.`x222` VALUES (5) /* WRITE_ROWS_EVENT */ /*!*/;
+# at 461
+#2024-11-14 17:23:45 server id 5223  end_log_pos 492 CRC32 c277cb40      XID_EVENT 
+COMMIT /* XID 65 */ /*!*/;
+DELIMITER ;
+# End of log file
 ```
