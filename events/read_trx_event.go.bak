@@ -1,0 +1,136 @@
+package events
+
+import (
+	"binlog/event_types"
+	"binlog/events/dml_event"
+	"binlog/gtid"
+	"binlog/utils"
+	"binlog/utils/logx"
+)
+
+/*
+	DDL正常事务顺序:
+	1. Gtid 或者 anonymous_gtid
+	2. Query
+
+	DML正常事务顺序:
+	1. Gtid 或者 anonymous_gtid
+	2. Query
+	3. Table_map
+	4. Write_rows Update_rows
+	3. Table_map
+	4. Write_rows Update_rows (3\4无限重复，每一条DML语句执行重复一次)
+	5. Xid (commit)
+
+	其他操作事件
+	Rotate (flush logs)
+	...
+*/
+
+// 读取一个事务内的所有event
+func Read_trx_events(r *utils.FileReaders) (trxBdata [][]byte, bPos, ePos uint) {
+	var NOT_HAVE_TRX bool = true
+	var trx_event_list [][]byte = make([][]byte, 0)
+	var HAVE_GTID bool = false
+	var HAVE_DML bool = false
+	//var TRX_BROKEN bool = false
+	var read_event_start_pos int
+	var trx_start_pos int
+	//var trx_stop_pos int
+
+	for NOT_HAVE_TRX {
+		read_event_start_pos = int(r.CurrPos())
+		event_bdata := Read_event(r)
+		if event_bdata == nil {
+			// 事务不完整
+			trx_event_list = nil
+			break
+		}
+		event_type := uint(event_bdata[4])
+
+		if event_type == event_types.GTID_LOG_EVENT || event_type == event_types.ANONYMOUS_GTID_LOG_EVENT {
+			// GTID 事务开始
+			x := gtid.GTID_EVENT{Event_type: event_type}
+			x.Init(event_bdata[19:])
+			HAVE_GTID = true
+			trx_event_list = nil
+			trx_start_pos = read_event_start_pos
+
+		} else if event_type == event_types.XID_EVENT {
+			if len(trx_event_list) > 1 && HAVE_DML && HAVE_GTID {
+				NOT_HAVE_TRX = false
+				logx.DebugF("READ TRX FINISH. offset:%d --> %d", trx_start_pos, r.CurrPos())
+			} else {
+				trx_event_list = nil
+			}
+
+			// 事务结束，还原标志
+			HAVE_GTID = false
+			HAVE_DML = false
+
+		} else if event_type == event_types.TABLE_MAP_EVENT {
+			tme := dml_event.TablemapEvent{}
+			tme.Init(event_bdata, uint(r.CurrPos()-int64(len(event_bdata))))
+			HAVE_DML = true
+			// 追加一个tablemapEvent
+			trx_event_list = append(trx_event_list, event_bdata)
+			logx.DebugF("event add. size: %d", len(event_bdata))
+
+			// 再追加一个event，这个event必定是 Write_rows Update_rows Delete_rows ..
+			newEvent := Read_event(r)
+			trx_event_list = append(trx_event_list, newEvent)
+
+			rowsEventName := ""
+			switch uint(newEvent[4]) {
+			case event_types.DELETE_ROWS_EVENT_V1:
+				rowsEventName = "DELETE_ROWS_EVENT_V1"
+			case event_types.DELETE_ROWS_EVENT:
+				rowsEventName = "DELETE_ROWS_EVENT"
+			case event_types.UPDATE_ROWS_EVENT:
+				rowsEventName = "UPDATE_ROWS_EVENT"
+			case event_types.UPDATE_ROWS_EVENT_V1:
+				rowsEventName = "UPDATE_ROWS_EVENT_V1"
+			case event_types.WRITE_ROWS_EVENT:
+				rowsEventName = "WRITE_ROWS_EVENT"
+			case event_types.WRITE_ROWS_EVENT_V1:
+				rowsEventName = "WRITE_ROWS_EVENT_V1"
+			}
+			logx.DebugF("TABLE_MAP_EVENT/%s event add. size: %d", rowsEventName, len(newEvent))
+			continue
+
+		} else if event_type == event_types.ROWS_QUERY_LOG_EVENT {
+			// DDL、DML操作
+			// binlog_rows_query_log_events 将原始SQL也记录到binlog里面
+			logx.DebugF("ROWS_QUERY_LOG_EVENT add.")
+			HAVE_DML = true
+
+		} else if event_type == event_types.QUERY_EVENT {
+			// 'BEGIN' --  DDL
+			logx.DebugF("QUERY_EVENT add.")
+			if string(event_bdata[len(event_bdata)-5:]) != "BEGIN" {
+				// DDL
+				// DDL event M_query 位于事件末端，记录实际执行的DDL语句或者BEGIN(DML开始事务)
+				// DDL event 到此结束
+				NOT_HAVE_TRX = false
+			} else {
+				// DML
+				NOT_HAVE_TRX = true
+				HAVE_GTID = true
+			}
+
+		} else {
+			logx.DebugF("SKIP EVENT TYPE:%v", event_type)
+			continue
+		}
+		logx.DebugF("event add. size: %d", len(event_bdata))
+		trx_event_list = append(trx_event_list, event_bdata)
+	}
+	if trx_event_list == nil {
+		logx.Error("Corrupted transaction events.")
+	} else {
+		logx.DebugF("READ TRX FINISH. len:%d bytes", len(trx_event_list))
+	}
+	ePos = uint(r.CurrPos())
+	trxBdata = trx_event_list
+	return
+}
