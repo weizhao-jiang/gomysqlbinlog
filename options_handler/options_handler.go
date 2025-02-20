@@ -51,7 +51,7 @@ func InitOptions() *Options {
 	stop_datetime := flag.String("stop-datetime", getEnv("STOP_DATETIME", "1970-01-01 00:00:00"), "Stop reading the binlog at first event having a datetime equal or posterior to the argument.")
 	include_gtids := flag.String("include-gtids", getEnv("INCLUDE_GTIDS", ""), "Print events whose Global Transaction Identifiers were provided.")
 	sql := flag.Bool("sql", getEnvBool("SQL", false), "Print raw sql.")
-	base64 := flag.Bool("base64", getEnvBool("BASE64", false), "Print sql in base64 format.")
+	base64 := flag.Bool("base64", getEnvBool("BASE64", false), "Print sql in base64 format.(Not support now.)")
 	rollback := flag.Bool("rollback", getEnvBool("ROLLBACK", false), "Print sql in rollback way.")
 	binaryx := flag.Bool("binary", getEnvBool("BINARY", false), "Print sql in binary way.")
 	version := flag.Bool("version", getEnvBool("VERSION", false), "gobinlog2sql version")
