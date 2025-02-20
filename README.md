@@ -50,7 +50,7 @@ gomysqlbinlog --skip-gtids --start-datetime "2025-02-20 08:00:00"  --stop-dateti
 
 #### 输出实例
 ```bash
-root@test# ./gomysqlbinlog --sql  --log-level 5 /mysql-bin
+root@test# ./gomysqlbinlog --sql /mysql-bin
 DELIMITER /*!*/;
 # at 4
 #2024-11-14 17:22:50 server id 5223  end_log_pos 126 CRC32 dd96da5e      FORMAT_DESCRIPTION_EVENT Start: binlog v4, server v8.0.40-0ubuntu0.22.04.1 created 2024-11-14 17:22:50
@@ -92,7 +92,7 @@ DELIMITER ;
 
 #### DEBUG 模式，可以看到每个event的分析流程
 ```bash
-root@test# ./gomysqlbinlog --sql  /mysql-bin
+root@test# ./gomysqlbinlog --sql --log-level 5 /mysql-bin
 2025-02-20 14:46:13.230 [DEBU] main.go:30: binlogType: normal binlog
 2025-02-20 14:46:13.230 [DEBU] format_desc_event.go:31: Binlog_version: 4
 2025-02-20 14:46:13.230 [DEBU] format_desc_event.go:35: Mysql_version: 8.0.40-0ubuntu0.22.04.1
