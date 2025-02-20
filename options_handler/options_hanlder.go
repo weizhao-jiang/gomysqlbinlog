@@ -137,10 +137,10 @@ func InitOptions() *Options {
 	op.DELIMITER = "/*!*/;"
 
 	// debug
-	op.FileName = "/opt/tmp/mysql-bin.000097"
-	//op.FileName = "/opt/tmp/centos-bin.003028_5.5"
-	//op.FileName = "/var/lib/mysql/mysql-bin.000838"
-	logx.SetLevel(logx.DEBUG_LEVEL)
+	// op.FileName = "/opt/tmp/mysql-bin.000097"
+	// op.FileName = "/opt/tmp/centos-bin.003028_5.5"
+	// op.FileName = "/var/lib/mysql/mysql-bin.000838"
+	// logx.SetLevel(logx.DEBUG_LEVEL)
 	// op.StartPos = new(uint)
 	// op.StopPos = new(uint)
 	// *op.StartPos = 960

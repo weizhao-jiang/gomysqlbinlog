@@ -46,3 +46,9 @@ gomysqlbinlog --start-datetime "2025-02-20 08:00:00"  --stop-datetime "2025-02-2
 # 重新生成GTID，而非使用原GTID
 gomysqlbinlog --skip-gtids --start-datetime "2025-02-20 08:00:00"  --stop-datetime "2025-02-20 12:00:00" --sql mysql-bin.000810
 ```
+
+
+#### 输出实例
+```bash
+
+```
