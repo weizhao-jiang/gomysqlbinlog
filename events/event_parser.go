@@ -1,6 +1,8 @@
 package events
 
 import (
+	"encoding/base64"
+	"fmt"
 	"gomysqlbinlog/binlog_header"
 	"gomysqlbinlog/event_types"
 	"gomysqlbinlog/events/dml_event"
@@ -9,8 +11,6 @@ import (
 	"gomysqlbinlog/utils"
 	"gomysqlbinlog/utils/event_ops"
 	"gomysqlbinlog/utils/logx"
-	"encoding/base64"
-	"fmt"
 	"hash/crc32"
 	"time"
 )
@@ -64,7 +64,8 @@ func (ep *EventParser) Parse(nextEvType int) error {
 		y := event_ops.EventDetailReader{}
 		x := QueryEvent{}
 		x.Init(ep.Ev.EvBdata)
-		ep.Ev.PrintEvHeaderInfo()
+		extraMsg := fmt.Sprintf("   thread_id=%d    exec_time=%d    error_code=%d", x.Thread_id, x.Query_exec_time, x.Error_code)
+		ep.Ev.PrintEvHeaderInfo(extraMsg)
 		querytime := time.Unix(int64(y.Read_uint_try(ep.Ev.EvBdata[:4], "")), 0)
 		logx.Output("SET TIMESTAMP=%v /* QUERY TIME %v */ %s\n",
 			y.Read_uint_try(ep.Ev.EvBdata[:4], ""),
