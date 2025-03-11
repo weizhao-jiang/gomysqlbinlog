@@ -211,6 +211,7 @@ func (j *JsonBinaryImpl) Read_inline_value(valType uint) (vx string, vTName stri
 func (j *JsonBinaryImpl) Read_varchar(offset int) string {
 	/*
 		@mysql-8.0.40/sql-common/json_binary.cc:252:append_variable_length
+		@mysql-8.0.40/sql-common/json_binary.cc:285:read_variable_length
 		Append a length to a String. The number of bytes used to store the length
 		uses a variable number of bytes depending on how large the length is. If the
 		highest bit in a byte is 1, then the length is continued on the next byte.
@@ -227,12 +228,12 @@ func (j *JsonBinaryImpl) Read_varchar(offset int) string {
 		| first bit  | len                                                                       |
 		------------------------------------------------------------------------------------------
 		| 0          | 第一个字节0-7位                                                            |
-		| 1          | (第一个字节0-7位)*2^7  + 下一个字节0-7位                                    |
-		| 1          | (第一个字节0-7位)*2^14 + (下一个字节0-7位)*2^7 +        (下一个字节0-7位)    |
+		| 1          | (第一个字节0-7位)<<7  + 下一个字节0-7位                                     |
+		| 1          | (第一个字节0-7位)<<14 + (下一个字节0-7位)<<7   +        (下一个字节0-7位)    |
 		| 1          | 以此类推..........                                                         |
 		------------------------------------------------------------------------------------------
 		每个字节第一位(第八位)作为标志位，如果为0，则第0-7位为长度整形，如果为1，则需要继续判断下一个字节中的最高位是否为1
-		如为1，则0-7位为长度整形，以此类推，知道下一个字节中最高位0，则结束
+		如为1，则0-7位为长度整形，以此类推，直到下一个字节中最高位0，则结束
 		// The length shouldn't exceed 32 bits.
 		且长度不应超过32位，4个字节
 
