@@ -1,53 +1,78 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
+	"gomysqlbinlog/event_types"
 	"gomysqlbinlog/events"
 	"gomysqlbinlog/options_handler"
+	"gomysqlbinlog/utils"
 	"gomysqlbinlog/utils/logx"
 	"testing"
 )
 
 func TestMain(t *testing.T) {
-	// -- UPDATE `MINI_PROGRAM1`.`test1` SET `@1`=8 and `@2`='77777' WHERE `@1`=8, `@2`='替换🤔' /* UPDATE_ROWS_EVENT */ /*!*/;
+
 	options := options_handler.InitOptions()
 	options.ToSQL = true
-	logx.SetLevel(logx.DEBUG_LEVEL)
-	ep := events.EventParser{Options: options, FileBPos: 0, FileEPos: 99999}
-	TrxListBdata := [][]byte{}
+	// logx.SetLevel(logx.DEBUG_LEVEL)
 
-	res, err := base64.StdEncoding.DecodeString("gr8LZhNnFAAASgAAAEsIAAAAAHEAAAAAAAEAE01FSVpVX01JTklfUFJPR1JBTTEABXRlc3QxAAIDDwL8AwIBAQACA/z/AL/g094=")
+	options.FileName = "/var/lib/mysql/mysql-bin.000989"
+	if options == nil {
+		return
+	}
+	r := utils.FileReaders{Filename: options.FileName}
+	defer r.Close()
+	err := r.Init()
 	if err != nil {
-		fmt.Println(err)
+		logx.Panic(err)
 	}
-	TrxListBdata = append(TrxListBdata, res)
 
-	//res1, err1 := base64.StdEncoding.DecodeString("gr8LZh9nFAAAQQAAAIwIAAAAAHEAAAAAAAEAAgAC//8ACAAAAAUANzc3NzcACAAAAAoA5pu/5o2i8J+klIrfqic=")
-	//原版
-	//res1, err1 := base64.StdEncoding.DecodeString("gr8LZh9nFAAAQQAAAIwIAAAAAHEAAAAAAAEAAgAC//8ACAAAAAUANzc3NzcACAAAAAoA5pu/5o2i8J+klIrfqic=")
-	//回滚版
-	res1, err1 := base64.StdEncoding.DecodeString("gr8LZh9nFAAAQQAAAIwIAAAAAHEAAAAAAAEAAgAC//8ACAAAAAoA5pu/5o2i8J+klAAIAAAABQA3Nzc3N3CIbqc=")
-
-	if err1 != nil {
-		fmt.Println(err1)
+	// 判断是否为 realaylog
+	data := r.Read(event_types.BINLOG_FLAG_SIZE)
+	if data == nil {
+		logx.Panic("failed to parse binlog.")
 	}
-	TrxListBdata = append(TrxListBdata, res1)
+	if fmt.Sprint(data) == fmt.Sprint([]byte(event_types.BINLOG_FLAG)) {
+		logx.Debug("binlogType: normal binlog")
+	} else {
+		logx.Debug("binlogType: relaylog")
+	}
 
-	for idx, ev := range TrxListBdata {
-		if e := ep.Init(&ev, true); e != nil {
-			logx.Error(e)
+	isFiltering := false
+	// counter := 0
+	for {
+		filter := events.ReadTrxEvents(&r, options)
+
+		if len(filter.TrxEventList) == 0 {
+			logx.Info("trx event is empty.")
+			break
 		}
-		nextEvType := -1
-		if idx+1 <= len(TrxListBdata)-1 {
-			if len(TrxListBdata[idx+1]) >= 4 {
-				nextEvType = int(ep.Read_uint_try(TrxListBdata[idx+1][4:5], "little"))
+		isMatched, isFinish := filter.DoFilter(options, &isFiltering)
+		if !isMatched && !isFinish {
+			continue
+		}
+
+		if isMatched {
+			ep := events.EventParser{Options: options}
+			for idx, ev := range filter.TrxEventList {
+				ep.Init(&ev, true)
+				nextEvType := -1
+				if idx+1 <= len(filter.TrxEventList)-1 {
+					nextEvType = int(filter.TrxEventList[idx+1].EvHeader.Event_data.Event_type)
+
+				}
+				err := ep.Parse(nextEvType)
+				if err != nil {
+					logx.Error(err)
+				}
+
 			}
 		}
-		err := ep.Parse(nextEvType)
-		if err != nil {
-			logx.Error(err)
-		}
 
+		if isFinish {
+			logx.Output("DELIMITER ;\n# Filter finish.\n")
+			return
+		}
 	}
+	logx.Output("DELIMITER ;\n# End of log file\n")
 }

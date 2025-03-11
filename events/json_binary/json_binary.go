@@ -217,19 +217,12 @@ func (j *JsonBinaryImpl) Read_varchar(offset int) string {
 		highest bit in a byte is 1, then the length is continued on the next byte.
 		The least significant bits are stored in the first byte.
 
-		------------------------------------------------------
-		| flag(1 bit) | 7 bit data (if flag, 8 bit data*128) |
-		------------------------------------------------------
-		读mysql的varchar的 记录长度的大小, 范围字节数量和大小
-		如果第一bit是1 就表示要使用2字节表示:
-			后面1字节表示 使用有多少个128字节, 然后加上前面1字节(除了第一bit)的数据(0-127) 就是最终数据
-
 		------------------------------------------------------------------------------------------
 		| first bit  | len                                                                       |
 		------------------------------------------------------------------------------------------
 		| 0          | 第一个字节0-7位                                                            |
-		| 1          | (第一个字节0-7位)<<7  + 下一个字节0-7位                                     |
-		| 1          | (第一个字节0-7位)<<14 + (下一个字节0-7位)<<7   +        (下一个字节0-7位)    |
+		| 1          | (第二个字节0-7位)<<7  + 第一个字节0-7位                                     |
+		| 1          | (第三个字节0-7位)<<14 + (第二个字节0-7位)<<7   +        (第一个字节0-7位)    |
 		| 1          | 以此类推..........                                                         |
 		------------------------------------------------------------------------------------------
 		每个字节第一位(第八位)作为标志位，如果为0，则第0-7位为长度整形，如果为1，则需要继续判断下一个字节中的最高位是否为1
@@ -238,14 +231,30 @@ func (j *JsonBinaryImpl) Read_varchar(offset int) string {
 		且长度不应超过32位，4个字节
 
 	*/
+	/*
+		varlenSize := 1
+		lenx := j.Read_int_try(j.Bdata[offset:offset+varlenSize], "little")
+		if flag := (lenx & (1 << 7)); flag == 128 {
+			varlenSize = 2
+			offset2 := j.Bdata[offset : offset+varlenSize]
+			lenx = j.Read_int_try(offset2[0:1], "little")*128 + j.Read_int_try(offset2[1:], "little") - (1 << 7)
+		}
+		return j.Read_string_try(j.Bdata[offset+varlenSize : offset+varlenSize+int(lenx)])
+	*/
+
 	varlenSize := 1
-	lenx := j.Read_int_try(j.Bdata[offset:offset+varlenSize], "little")
-	if flag := (lenx & (1 << 7)); flag == 128 {
+	firstByte := j.Bdata[offset : offset+varlenSize][0]
+	charLen := int64(uint8(firstByte))
+	if firstByte&0b10000000 == 128 {
+		// 第一个字节是低位， 第二个字节是高位
 		varlenSize = 2
-		offset2 := j.Bdata[offset : offset+varlenSize]
-		lenx = j.Read_int_try(offset2[0:1], "little")*128 + j.Read_int_try(offset2[1:], "little") - (1 << 7)
+		secondByte := j.Bdata[offset+1 : offset+1+1][0]
+		charLen1 := int64(uint8(firstByte & 0b01111111))
+		charLen2 := int64(uint8(secondByte)) * 128
+		charLen = charLen1 + charLen2
+		// charLen = int64(uint8(firstByte&0b01111111))*128 + int64(uint8(secondByte))
 	}
-	return j.Read_string_try(j.Bdata[offset+varlenSize : offset+varlenSize+int(lenx)])
+	return j.Read_string_try(j.Bdata[offset+varlenSize : offset+varlenSize+int(charLen)])
 }
 
 func (j *JsonBinaryImpl) ToString() string {
